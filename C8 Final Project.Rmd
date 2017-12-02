@@ -1,0 +1,108 @@
+---
+title: "Study in Accuracy in Dumbell Exercises"
+author: "Holly Parish"
+date: "November 23, 2017"
+output: html_document
+---
+
+## Introduction
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. 
+
+## Approach
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Load the libraries and Data
+```{r}
+library(caret)
+library(randomForest)
+
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+trgdat <- read.csv(url(trainUrl))
+testdat <- read.csv(url(testUrl))
+
+```
+
+##Partitioning the data into Training and Test sets
+```{r}
+inTrain = createDataPartition(trgdat$classe, p = 0.6)[[1]]
+training = trgdat[ inTrain,]
+testing = trgdat[-inTrain,]
+
+```
+
+## Exploring and Transforming the Data 
+Need to explore the data to see what variables may contribute to the model. Remove any columns that have na values, remove any columns that are blank. The first 6 columns are specific to the user and time stamps that won't contribute to predicting the model and thus should also be removed from the training data so not to include them in the model creation.
+
+Transformation 1 - Remove NAs, blanks and Div#0
+```{r}
+trgdat <- training[,colSums(is.na(training)) == 0]
+
+missingvalues <- colSums(trgdat=="")
+trgdat <- trgdat[,missingvalues==0]
+
+```
+
+Transformation 2: Left with 60 variables in the data set, remove first 7 columns, as they are more for reference/ identification purposes and will not assist in predicting class.
+
+```{r}
+trgdat <- trgdat[,8:60]
+
+```
+
+Left with 53 variables for the model.Repeat all actions on partitioned testing set and originally provided Test Set.
+
+```{r}
+
+testingdat <- testing[names(trgdat)]
+
+## the test file doesn't have a predicted classe value - rather a problem_Id value instead, need to remove it in order to be able to predict a new classe value.
+
+testdat2 <- testdat[names(trgdat[,-53])]
+```
+
+## Model Testing and Assessing Accuracy
+
+METHOD 1: RPart with 10 fold cross validation
+
+Now lets apply cross validation to the model using k-fold where there are 10 folds
+```{r}
+train_control <- trainControl(method = "cv", number = 10)
+mod <- train(classe ~., data = trgdat, trControl = train_control, method = "rpart")
+
+pred1 <- predict(mod, testingdat)
+confusionMatrix(pred1, testingdat$classe )
+
+```
+
+As you can see above, the model doesn't predict D class, and the accuracy is only at 49%. Lets try using the rpart method outside of the caret package - it does not include the cross validation in it's calculation.
+
+METHOD 2: RPart 
+```{r}
+mod2 <- rpart(classe ~., data = trgdat, method = "class")
+pred2 <- predict(mod2, testingdat, type = "class")
+confusionMatrix(pred2, testingdat$classe)
+
+```
+The results are much better - 75% accuracy.
+
+METHOD 3: RF
+```{r}
+modRF <- randomForest(classe~., data = trgdat)
+predRF <- predict(modRF, testingdat)
+confusionMatrix(predRF, testingdat$classe)
+
+```
+
+##Model Prediction
+As we can see, the Random Forest model had the best accuracy. I'll now predict on the 20 test cases using the chosen model.
+
+```{r}
+predObs <- predict(modRF, testdat2)
+print(predObs)
+
+```
